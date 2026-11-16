@@ -1,4 +1,4 @@
-import { type RefObject, type PointerEvent as ReactPointerEvent, useState } from 'react';
+import { type RefObject, type PointerEvent as ReactPointerEvent, useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -80,7 +80,6 @@ export default function EditorView({
   isResizing,
   layoutMode,
   isAndroid,
-  compactEditorPanelHeight,
   compactEditorPanelCollapsedHeight,
   thumbnailAspectRatio,
   sortedImageList,
@@ -218,24 +217,36 @@ export default function EditorView({
   const [drawerHeight, setDrawerHeight] = useState<number | null>(null);
   const [drawerMinHeight, setDrawerMinHeight] = useState(compactEditorPanelCollapsedHeight);
 
-  const drawerMaxHeight = Math.max(
-    drawerMinHeight,
-    Math.round(canvasSize.height * 0.85),
-  );
-  const drawerFullHeight = Math.min(
-    Math.max(compactEditorPanelHeight, drawerMinHeight),
-    drawerMaxHeight,
-  );
-  const drawerHalfHeight = Math.min(
-    drawerMaxHeight,
-    Math.max(drawerMinHeight, Math.round(canvasSize.height * 0.5)),
-  );
-  const drawerSnapHeights = [drawerMinHeight, drawerHalfHeight, drawerFullHeight];
+  const drawerMaxHeight = Math.max(drawerMinHeight, Math.round(canvasSize.height * 0.4));
+  const drawerExpandedHeight = drawerMaxHeight;
+  const drawerSnapHeights = [drawerMinHeight, drawerExpandedHeight];
   const drawerHeightValue = Math.max(
     drawerMinHeight,
-    Math.min(drawerHeight ?? drawerHalfHeight, drawerMaxHeight),
+    Math.min(drawerHeight ?? drawerExpandedHeight, drawerMaxHeight),
   );
   const isDrawerCollapsed = drawerHeightValue <= drawerMinHeight + 1;
+
+  useEffect(() => {
+    if (layoutMode !== 'compact') return;
+    const node = canvasRef.current;
+    if (!node) return;
+
+    const pointers = new Set<number>();
+    const handlePointerDown = (event: PointerEvent) => {
+      pointers.add(event.pointerId);
+      if (pointers.size >= 2) setDrawerHeight(drawerMinHeight);
+    };
+    const handlePointerUp = (event: PointerEvent) => pointers.delete(event.pointerId);
+
+    node.addEventListener('pointerdown', handlePointerDown, { capture: true });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+    return () => {
+      node.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [layoutMode, drawerMinHeight]);
 
   const handleDrawerSnap = (height: number) => {
     const nearest = drawerSnapHeights.reduce(
@@ -246,13 +257,13 @@ export default function EditorView({
   };
 
   const handleToggleDrawer = () => {
-    setDrawerHeight(isDrawerCollapsed ? drawerHalfHeight : drawerMinHeight);
+    setDrawerHeight(isDrawerCollapsed ? drawerExpandedHeight : drawerMinHeight);
   };
 
   const handleQuickPanelSelect = (panelId: Panel) => {
     handlePanelSelect(panelId);
     if (isDrawerCollapsed) {
-      setDrawerHeight(drawerHalfHeight);
+      setDrawerHeight(drawerExpandedHeight);
     }
   };
 
