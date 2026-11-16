@@ -523,11 +523,17 @@ pub fn save_bytes_to_android_media_store(
     }
 
     let write_result = (|| -> Result<(), String> {
-        let byte_array = env
-            .byte_array_from_slice(bytes)
-            .map_err(|e| map_android_jni_error(&mut env, e))?;
-        env.call_method(&output_stream, "write", "([B)V", &[(&byte_array).into()])
-            .map_err(|e| map_android_jni_error(&mut env, e))?;
+        const WRITE_CHUNK_SIZE: usize = 4 * 1024 * 1024;
+        for chunk in bytes.chunks(WRITE_CHUNK_SIZE) {
+            let byte_array = env
+                .byte_array_from_slice(chunk)
+                .map_err(|e| map_android_jni_error(&mut env, e))?;
+            let write_result = env
+                .call_method(&output_stream, "write", "([B)V", &[(&byte_array).into()])
+                .map_err(|e| map_android_jni_error(&mut env, e));
+            let _ = env.delete_local_ref(byte_array);
+            write_result?;
+        }
         env.call_method(&output_stream, "flush", "()V", &[])
             .map_err(|e| map_android_jni_error(&mut env, e))?;
         Ok(())
