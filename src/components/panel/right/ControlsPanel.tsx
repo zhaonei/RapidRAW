@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RotateCcw, Copy, ClipboardPaste, PencilSparkles, ChartArea, LayoutList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -31,6 +31,8 @@ import { buildAutoAdjustModeOptions, useEditorActions } from '../../../hooks/use
 import { useWaveformControls } from '../../../hooks/useWaveformControls';
 import type { ParseKeys } from 'i18next';
 
+const MOBILE_GROUP_ORDER = ['basic', 'color', 'curves', 'details', 'effects'];
+
 function AdjustmentSectionContent(props: {
   sectionName: string;
   activeTools: ActiveTools;
@@ -41,7 +43,7 @@ function AdjustmentSectionContent(props: {
   return <AdjustmentSection {...props} adjustments={adjustments} />;
 }
 
-export default function Controls() {
+export default function Controls({ mobileGrouped = false }: { mobileGrouped?: boolean }) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
   const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, handleWaveformResize } =
@@ -56,6 +58,11 @@ export default function Controls() {
   );
 
   const visibleSections = getVisibleAdjustmentSections(appSettings?.adjustmentLayout);
+  const mobileSections = useMemo(
+    () => visibleSections.filter((section: string) => MOBILE_GROUP_ORDER.includes(section)),
+    [visibleSections],
+  );
+  const [activeGroup, setActiveGroup] = useState<string>(MOBILE_GROUP_ORDER[0]);
 
   const { collapsibleSectionsState, setUI } = useUIStore(
     useShallow((state) => ({
@@ -161,6 +168,17 @@ export default function Controls() {
       return { ...prev, [section]: !prev[section] };
     });
   };
+
+  const renderedSections = mobileGrouped ? mobileSections.filter((section: string) => section === activeGroup) : visibleSections;
+
+  useEffect(() => {
+    if (!mobileGrouped) return;
+    if (!mobileSections.includes(activeGroup)) {
+      setActiveGroup(mobileSections[0] ?? MOBILE_GROUP_ORDER[0]);
+      return;
+    }
+    setCollapsibleState((prev: any) => (prev[activeGroup] ? prev : { ...prev, [activeGroup]: true }));
+  }, [activeGroup, mobileGrouped, mobileSections, setCollapsibleState]);
 
   const handleSectionContextMenu = (event: any, sectionName: string) => {
     event.preventDefault();
@@ -293,9 +311,29 @@ export default function Controls() {
         )}
       </AnimatePresence>
 
+      {mobileGrouped && mobileSections.length > 0 && (
+        <div className="shrink-0 flex gap-1 overflow-x-auto overscroll-contain custom-scrollbar px-2 py-2 border-b border-surface">
+          {mobileSections.map((section: string) => {
+            const isActive = section === activeGroup;
+            return (
+              <button
+                key={section}
+                onClick={() => setActiveGroup(section)}
+                className={clsx(
+                  'px-3 py-1.5 rounded-full text-sm shrink-0 transition-colors',
+                  isActive ? 'bg-accent text-button-text' : 'bg-surface/60 text-text-secondary',
+                )}
+              >
+                {t(`editor.adjustments.sections.${section}` as ParseKeys)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grow overflow-y-scroll p-3 flex flex-col gap-2">
         {selectedImage ? (
-          visibleSections.map((sectionName: string) => {
+          renderedSections.map((sectionName: string) => {
             const title = t(`editor.adjustments.sections.${sectionName}` as ParseKeys);
 
             return (
