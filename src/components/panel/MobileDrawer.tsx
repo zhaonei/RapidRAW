@@ -37,6 +37,7 @@ export default function MobileDrawer({
   const [isDragging, setIsDragging] = useState(false);
   const gripRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const swipeStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     const grip = gripRef.current;
@@ -53,6 +54,19 @@ export default function MobileDrawer({
     update();
     return () => observer.disconnect();
   }, [onMinHeightChange]);
+
+  const handleSwipeStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    swipeStartRef.current = event.touches[0]?.clientY ?? null;
+  };
+
+  const handleSwipeMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const startY = swipeStartRef.current;
+    if (startY === null) return;
+    if ((event.touches[0]?.clientY ?? startY) - startY > 30) {
+      swipeStartRef.current = null;
+      onToggleCollapsed();
+    }
+  };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -91,7 +105,7 @@ export default function MobileDrawer({
   return (
     <div
       className={clsx(
-        'absolute inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden rounded-t-lg border-t border-surface bg-bg-secondary',
+        'absolute inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden rounded-t-lg border-t border-surface bg-bg-secondary/80 backdrop-blur-xl',
         !isDragging && 'shadow-[0_-8px_24px_rgba(0,0,0,0.35)]',
       )}
       style={{
@@ -132,7 +146,12 @@ export default function MobileDrawer({
         )}
       </div>
 
-      <div ref={bottomRef} className="shrink-0">
+      <div
+        ref={bottomRef}
+        className="shrink-0"
+        onTouchStart={handleSwipeStart}
+        onTouchMove={handleSwipeMove}
+      >
         {switcher}
         <div className="border-t border-surface">{footer}</div>
       </div>
