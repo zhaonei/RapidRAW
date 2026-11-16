@@ -756,7 +756,7 @@ function App() {
         case Panel.Adjustments:
           return (
             <AdjustmentSliderResetProvider>
-              <Controls />
+              <Controls mobileGrouped={layoutMode === 'compact'} />
             </AdjustmentSliderResetProvider>
           );
         case Panel.Metadata:
@@ -804,6 +804,7 @@ function App() {
       handleNavForward,
       setUI,
       isInstantTransition,
+      layoutMode,
       exportState,
       multiSelectedPaths,
       selectedImage,
