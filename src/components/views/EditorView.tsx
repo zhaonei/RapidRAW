@@ -1,14 +1,17 @@
-import { type RefObject, type PointerEvent as ReactPointerEvent } from 'react';
+import { type RefObject, type PointerEvent as ReactPointerEvent, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { ChevronUp } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 
 import Editor from '../panel/Editor';
 import BottomBar from '../panel/BottomBar';
 import Resizer from '../ui/Resizer';
-import { MobilePanelSwitcher } from '../panel/PanelSwitcher';
+import MobileDrawer from '../panel/MobileDrawer';
+import { MobilePanelSwitcher, PANEL_TITLES, PANEL_ICONS } from '../panel/PanelSwitcher';
+import { useContainerSize } from '../../hooks/useContainerSize';
 
 import { useEditorStore } from '../../store/useEditorStore';
 import { isFilmstripDocked, useUIStore } from '../../store/useUIStore';
@@ -97,6 +100,7 @@ export default function EditorView({
   requestThumbnails,
   renderAppPanel,
 }: EditorViewProps) {
+  const { t } = useTranslation();
   const { selectedImage } = useEditorStore(
     useShallow((state) => ({
       selectedImage: state.selectedImage,
@@ -210,55 +214,120 @@ export default function EditorView({
     </div>
   );
 
-  const editorMobilePanelNode =
-    layoutMode === 'compact' ? (
-      <div
-        className={clsx(
-          'flex overflow-hidden shrink-0 flex-col bg-bg-secondary rounded-lg',
-          !isResizing && !isInstantTransition && 'transition-all duration-300 ease-in-out',
-        )}
-        style={{
-          height: isFullScreen ? 0 : activePanel ? compactEditorPanelHeight : compactEditorPanelCollapsedHeight,
-          opacity: isFullScreen ? 0 : 1,
-        }}
-      >
-        {activePanel && !isFullScreen && (
-          <Resizer
-            direction={Orientation.Horizontal}
-            onMouseDown={createResizeHandler('compact', compactEditorPanelHeight)}
-            onDoubleClick={createResizeResetHandler('compact')}
-          />
-        )}
-        <div className="min-h-0 flex-1 overflow-hidden relative">
-          <AnimatePresence mode="wait">
-            {activePanel && (
-              <motion.div
-                key={activePanel}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.15 }}
-                className="absolute inset-0 overflow-y-auto custom-scrollbar"
-              >
-                {renderAppPanel(activePanel)}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-        <MobilePanelSwitcher activePanel={activePanel} onPanelSelect={handlePanelSelect} />
-        <div className="shrink-0 border-t border-surface">{editorBottomBarComponent}</div>
-      </div>
-    ) : null;
+  const [canvasRef, canvasSize] = useContainerSize<HTMLDivElement>();
+  const [drawerHeight, setDrawerHeight] = useState<number | null>(null);
+  const [drawerMinHeight, setDrawerMinHeight] = useState(compactEditorPanelCollapsedHeight);
+
+  const drawerMaxHeight = Math.max(
+    drawerMinHeight,
+    Math.round(canvasSize.height * 0.85),
+  );
+  const drawerFullHeight = Math.min(
+    Math.max(compactEditorPanelHeight, drawerMinHeight),
+    drawerMaxHeight,
+  );
+  const drawerHalfHeight = Math.min(
+    drawerMaxHeight,
+    Math.max(drawerMinHeight, Math.round(canvasSize.height * 0.5)),
+  );
+  const drawerSnapHeights = [drawerMinHeight, drawerHalfHeight, drawerFullHeight];
+  const drawerHeightValue = Math.max(
+    drawerMinHeight,
+    Math.min(drawerHeight ?? drawerHalfHeight, drawerMaxHeight),
+  );
+  const isDrawerCollapsed = drawerHeightValue <= drawerMinHeight + 1;
+
+  const handleDrawerSnap = (height: number) => {
+    const nearest = drawerSnapHeights.reduce(
+      (best, snap) => (Math.abs(snap - height) < Math.abs(best - height) ? snap : best),
+      drawerSnapHeights[0],
+    );
+    setDrawerHeight(nearest);
+  };
+
+  const handleToggleDrawer = () => {
+    setDrawerHeight(isDrawerCollapsed ? drawerHalfHeight : drawerMinHeight);
+  };
+
+  const handleQuickPanelSelect = (panelId: Panel) => {
+    handlePanelSelect(panelId);
+    if (isDrawerCollapsed) {
+      setDrawerHeight(drawerHalfHeight);
+    }
+  };
+
+  const quickPanelIds = [Panel.Adjustments, Panel.Crop, Panel.Masks, Panel.Presets];
 
   return (
-    <div className={clsx('flex grow h-full min-h-0', layoutMode === 'compact' ? 'flex-col gap-2' : 'flex-col')}>
-      <div className={clsx('relative flex-1 flex flex-col min-w-0', layoutMode === 'compact' && 'min-h-0')}>
+    <div
+      className={clsx(
+        'flex grow h-full min-h-0',
+        layoutMode === 'compact' ? 'relative flex-col' : 'flex-col',
+      )}
+    >
+      <div
+        ref={canvasRef}
+        className={clsx('relative flex-1 flex flex-col min-w-0', layoutMode === 'compact' && 'min-h-0')}
+      >
         {editorNode}
+
+        {layoutMode === 'compact' && isDrawerCollapsed && (
+          <div className="absolute inset-x-2 bottom-2 z-20 flex items-center gap-1 rounded-lg border border-surface bg-bg-secondary/90 p-1 backdrop-blur-md">
+            {quickPanelIds.map((panelId) => {
+              const Icon = PANEL_ICONS[panelId];
+              const isActive = activePanel === panelId && !isDrawerCollapsed;
+              return (
+                <button
+                  key={panelId}
+                  onClick={() => handleQuickPanelSelect(panelId)}
+                  data-tooltip={t(PANEL_TITLES[panelId])}
+                  className={clsx(
+                    'flex items-center justify-center p-2.5 rounded-md transition-colors',
+                    isActive
+                      ? 'bg-surface text-text-primary'
+                      : 'text-text-secondary active:bg-surface',
+                  )}
+                >
+                  <Icon size={20} />
+                </button>
+              );
+            })}
+            <div className="flex-1" />
+            <button
+              onClick={handleToggleDrawer}
+              data-tooltip={t('editor.switcher.tooltips.adjust')}
+              className="flex items-center justify-center p-2.5 rounded-md text-text-secondary active:bg-surface"
+            >
+              <ChevronUp size={20} />
+            </button>
+          </div>
+        )}
+
         <AnimatePresence>
           {isFilmstripInSidePanel && isDraggingFilmstrip && <FilmstripDropzone height={bottomPanelHeight} />}
         </AnimatePresence>
       </div>
-      {layoutMode === 'compact' ? editorMobilePanelNode : editorBottomBarNode}
+
+      {layoutMode === 'compact' ? (
+        <MobileDrawer
+          height={drawerHeightValue}
+          maxHeight={drawerMaxHeight}
+          isCollapsed={isDrawerCollapsed}
+          isHidden={isFullScreen}
+          activePanel={activePanel}
+          onHeightChange={setDrawerHeight}
+          onSnap={handleDrawerSnap}
+          onToggleCollapsed={handleToggleDrawer}
+          onMinHeightChange={setDrawerMinHeight}
+          renderPanel={renderAppPanel}
+          switcher={
+            <MobilePanelSwitcher activePanel={activePanel} onPanelSelect={handleQuickPanelSelect} />
+          }
+          footer={editorBottomBarComponent}
+        />
+      ) : (
+        editorBottomBarNode
+      )}
     </div>
   );
 }
