@@ -105,14 +105,15 @@ export default function MobileDrawer({
   return (
     <div
       className={clsx(
-        'absolute inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden rounded-t-lg border-t border-surface bg-bg-secondary/80 backdrop-blur-xl',
+        'shrink-0 relative flex flex-col overflow-hidden border-t border-surface bg-bg-secondary',
         !isDragging && 'shadow-[0_-8px_24px_rgba(0,0,0,0.35)]',
       )}
       style={{
         height: isHidden ? 0 : height,
         opacity: isHidden ? 0 : 1,
         pointerEvents: isHidden ? 'none' : 'auto',
-        transition: isDragging ? 'none' : 'height 260ms cubic-bezier(0.32, 0.72, 0, 1)',
+        transition: isDragging ? 'none' : 'height 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+        overscrollBehavior: 'contain',
       }}
       data-mobile-drawer
     >
