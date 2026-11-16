@@ -714,8 +714,16 @@ export default function ExportPanel({
         });
       }
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+            ? error
+            : error
+              ? String(error)
+              : '';
       setExportState({
-        errorMessage: typeof error === 'string' ? error : t('export.status.failed'),
+        errorMessage: message || t('export.status.failed'),
         progress,
         status: Status.Error,
       });
