@@ -42,6 +42,8 @@ pub struct LutEntry {
     pub name: String,
     pub path: String,
     pub is_built_in: bool,
+    #[serde(default)]
+    pub group: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,40 +85,105 @@ pub fn get_luts_dir(app_data_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(luts_dir)
 }
 
-pub fn list_luts_in_dir(dir: &Path, is_built_in: bool) -> anyhow::Result<Vec<LutEntry>> {
-    let mut entries: Vec<LutEntry> = Vec::new();
+const MAX_LUT_FOLDER_DEPTH: usize = 3;
+const LUT_EXTENSIONS: [&str; 7] = ["cube", "3dl", "png", "jpg", "jpeg", "tiff"];
+
+fn collect_lut_entries(
+    root: &Path,
+    dir: &Path,
+    is_built_in: bool,
+    depth: usize,
+    out: &mut Vec<LutEntry>,
+) -> anyhow::Result<()> {
     if !dir.exists() {
-        return Ok(entries);
+        return Ok(());
     }
     for entry in read_dir(dir)? {
         let path = entry?.path();
+        if path.is_dir() {
+            if depth < MAX_LUT_FOLDER_DEPTH {
+                collect_lut_entries(root, &path, is_built_in, depth + 1, out)?;
+            }
+            continue;
+        }
         let extension = path
             .extension()
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_lowercase();
+        if !LUT_EXTENSIONS.contains(&extension.as_str()) {
+            continue;
+        }
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("LUT")
+            .to_string();
+        let group = path
+            .parent()
+            .and_then(|parent| parent.strip_prefix(root).ok())
+            .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        out.push(LutEntry {
+            name,
+            path: strip_verbatim(&path).to_string_lossy().into_owned(),
+            is_built_in,
+            group,
+        });
+    }
+    Ok(())
+}
 
-        let is_supported = matches!(
-            extension.as_str(),
-            "cube" | "3dl" | "png" | "jpg" | "jpeg" | "tiff"
-        );
+pub fn list_luts_in_dir(dir: &Path, is_built_in: bool) -> anyhow::Result<Vec<LutEntry>> {
+    let mut entries: Vec<LutEntry> = Vec::new();
+    collect_lut_entries(dir, dir, is_built_in, 0, &mut entries)?;
+    entries.sort_by(|a, b| {
+        (a.group.to_lowercase(), a.name.to_lowercase())
+            .cmp(&(b.group.to_lowercase(), b.name.to_lowercase()))
+    });
+    Ok(entries)
+}
 
-        if is_supported {
-            let name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("LUT")
-                .to_string();
+pub fn list_lut_folders_in_dir(dir: &Path) -> anyhow::Result<Vec<String>> {
+    let mut folders = Vec::new();
+    collect_lut_folders(dir, dir, 0, &mut folders)?;
+    folders.sort_by_key(|a| a.to_lowercase());
+    Ok(folders)
+}
 
-            entries.push(LutEntry {
-                name,
-                path: strip_verbatim(&path).to_string_lossy().into_owned(),
-                is_built_in,
-            });
+fn collect_lut_folders(
+    root: &Path,
+    dir: &Path,
+    depth: usize,
+    out: &mut Vec<String>,
+) -> anyhow::Result<()> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in read_dir(dir)? {
+        let path = entry?.path();
+        if !path.is_dir() {
+            continue;
+        }
+        if let Ok(rel) = path.strip_prefix(root) {
+            out.push(rel.to_string_lossy().replace('\\', "/"));
+        }
+        if depth < MAX_LUT_FOLDER_DEPTH {
+            collect_lut_folders(root, &path, depth + 1, out)?;
         }
     }
-    entries.sort_by_key(|a| a.name.to_lowercase());
-    Ok(entries)
+    Ok(())
+}
+
+fn sanitize_lut_folder(path: &str) -> anyhow::Result<PathBuf> {
+    let mut out = PathBuf::new();
+    for part in path.split('/') {
+        if part.is_empty() || part == ".." || part == "." || part.contains('\\') {
+            continue;
+        }
+        out.push(part);
+    }
+    Ok(out)
 }
 
 pub fn unique_destination(dir: &Path, stem: &str, extension: &str) -> PathBuf {
@@ -571,6 +638,7 @@ fn list_luts_in_cache() -> anyhow::Result<Vec<LutEntry>> {
                 name,
                 path: strip_verbatim(&path).to_string_lossy().into_owned(),
                 is_built_in: false,
+                group: String::new(),
             });
         }
     }
@@ -582,15 +650,56 @@ fn list_luts_in_cache() -> anyhow::Result<Vec<LutEntry>> {
 pub fn import_luts(
     app_handle: AppHandle,
     source_paths: Vec<String>,
+    subfolder: Option<String>,
 ) -> Result<Vec<LutEntry>, String> {
     let data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?;
     let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
-    import_luts_to_dir(&luts_dir, &source_paths).map_err(|e| e.to_string())?;
+
+    let target_dir = match subfolder.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(rel) => {
+            let rel = sanitize_lut_folder(rel).map_err(|e| e.to_string())?;
+            let target = luts_dir.join(rel);
+            std::fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+            target
+        }
+        None => luts_dir.clone(),
+    };
+
+    import_luts_to_dir(&target_dir, &source_paths).map_err(|e| e.to_string())?;
 
     list_luts(app_handle)
+}
+
+#[tauri::command]
+pub fn create_lut_folder(app_handle: AppHandle, name: String) -> Result<Vec<String>, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        return Err("Invalid folder name".to_string());
+    }
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    let rel = sanitize_lut_folder(trimmed).map_err(|e| e.to_string())?;
+    if rel.as_os_str().is_empty() {
+        return Err("Invalid folder name".to_string());
+    }
+    std::fs::create_dir_all(luts_dir.join(&rel)).map_err(|e| e.to_string())?;
+    list_lut_folders(app_handle)
+}
+
+#[tauri::command]
+pub fn list_lut_folders(app_handle: AppHandle) -> Result<Vec<String>, String> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
+    list_lut_folders_in_dir(&luts_dir).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
