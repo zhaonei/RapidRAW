@@ -86,7 +86,7 @@ pub fn get_luts_dir(app_data_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 const MAX_LUT_FOLDER_DEPTH: usize = 3;
-const LUT_EXTENSIONS: [&str; 7] = ["cube", "3dl", "png", "jpg", "jpeg", "tiff"];
+const LUT_EXTENSIONS: [&str; 6] = ["cube", "3dl", "png", "jpg", "jpeg", "tiff"];
 
 fn collect_lut_entries(
     root: &Path,
