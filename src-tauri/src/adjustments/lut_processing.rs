@@ -658,7 +658,11 @@ pub fn import_luts(
         .map_err(|e| e.to_string())?;
     let luts_dir = get_luts_dir(&data_dir).map_err(|e| e.to_string())?;
 
-    let target_dir = match subfolder.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    let target_dir = match subfolder
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         Some(rel) => {
             let rel = sanitize_lut_folder(rel).map_err(|e| e.to_string())?;
             let target = luts_dir.join(rel);
