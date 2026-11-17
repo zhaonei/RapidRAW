@@ -39,6 +39,21 @@ jobs:
           git clone --depth 1 https://github.com/andreavolpato/spektrafilm.git sf
           git clone --depth 1 https://github.com/thetechgeekko/Spektrafilm-android.git port
           cp -v port/engine/spektra-core/src/main/assets/spektra/profiles/*.json sf/src/spektrafilm/data/profiles/ || true
+
+      - name: Strip unsupported profile fields
+        run: |
+          python - <<'PYJSON'
+          import glob, json, os
+          for path in glob.glob("sf/src/spektrafilm/data/profiles/*.json"):
+              data = json.load(open(path))
+              meta = data.get("metadata")
+              if isinstance(meta, dict) and meta.pop("derived_from", None) is not None:
+                  json.dump(data, open(path, "w"), indent=2)
+                  print("stripped", os.path.basename(path))
+          PYJSON
+
+      - name: Install engine deps
+        run: |
           python -m pip install --upgrade pip
           pip install -e ./sf --no-deps
           pip install numpy scipy colour-science scikit-image opt-einsum numba Pillow matplotlib OpenImageIO pyfftw rawpy exiv2 lensfunpy tomli
