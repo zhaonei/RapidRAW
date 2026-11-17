@@ -14,6 +14,7 @@ interface LutEntry {
   name: string;
   path: string;
   isBuiltIn: boolean;
+  group?: string;
 }
 
 interface LutPreview {
@@ -52,6 +53,9 @@ export default function LUTControl({
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [entries, setEntries] = useState<LutEntry[]>([]);
+  const [folders, setFolders] = useState<string[]>([]);
+  const [targetGroup, setTargetGroup] = useState('');
+  const [newFolderName, setNewFolderName] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, string | null>>({});
   const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
   const previewCache = useRef<Map<string, Record<string, string | null>>>(new Map());
@@ -91,12 +95,33 @@ export default function LUTControl({
 
   const refreshList = useCallback(async () => {
     try {
-      const list = await invoke<LutEntry[]>('list_luts');
+      const [list, dirs] = await Promise.all([
+        invoke<LutEntry[]>('list_luts'),
+        invoke<string[]>('list_lut_folders').catch(() => [] as string[]),
+      ]);
       setEntries(list);
+      setFolders(dirs);
     } catch (err) {
       console.error('Failed to list LUTs:', err);
     }
   }, []);
+
+  const handleCreateFolder = useCallback(async () => {
+    const name = (newFolderName ?? '').trim();
+    if (!name) {
+      setNewFolderName(null);
+      return;
+    }
+    try {
+      const dirs = await invoke<string[]>('create_lut_folder', { name });
+      setFolders(dirs);
+      setTargetGroup(name);
+      setNewFolderName(null);
+    } catch (err) {
+      console.error('Failed to create LUT folder:', err);
+      toast.error(String(err));
+    }
+  }, [newFolderName]);
 
   useEffect(() => {
     refreshList();
@@ -186,7 +211,10 @@ export default function LUTControl({
         }
       }
 
-      const list = await invoke<LutEntry[]>('import_luts', { sourcePaths: validPaths });
+      const list = await invoke<LutEntry[]>('import_luts', {
+        sourcePaths: validPaths,
+        subfolder: targetGroup || null,
+      });
       previewCache.current.clear();
       setEntries(list);
       setPreviews({});
@@ -207,6 +235,15 @@ export default function LUTControl({
 
   const builtInLuts = entries.filter((e) => e.isBuiltIn);
   const customLuts = entries.filter((e) => !e.isBuiltIn);
+  const customGroups = Array.from(
+    customLuts.reduce((map, entry) => {
+      const key = entry.group ?? '';
+      if (!map.has(key)) map.set(key, [] as LutEntry[]);
+      map.get(key)!.push(entry);
+      return map;
+    }, new Map<string, LutEntry[]>()),
+  ).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+  const visibleGroups = customGroups.filter(([group]) => !targetGroup || group === targetGroup);
 
   const renderSwatch = (entry: LutEntry) => {
     const thumb = previews[entry.path];
@@ -333,16 +370,79 @@ export default function LUTControl({
                     {t('ui.lut.import')}
                   </button>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {customLuts.map(renderSwatch)}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1">
+                      <button
+                        onClick={() => setTargetGroup('')}
+                        className={`px-2 py-1 rounded-full text-xs shrink-0 transition-colors ${
+                          targetGroup === '' ? 'bg-accent text-button-text' : 'bg-bg-tertiary text-text-secondary'
+                        }`}
+                      >
+                        {t('ui.lut.allLuts')}
+                      </button>
+                      {folders.map((folder) => (
+                        <button
+                          key={folder}
+                          onClick={() => setTargetGroup(folder)}
+                          className={`px-2 py-1 rounded-full text-xs shrink-0 transition-colors ${
+                            targetGroup === folder ? 'bg-accent text-button-text' : 'bg-bg-tertiary text-text-secondary'
+                          }`}
+                        >
+                          {folder}
+                        </button>
+                      ))}
+                      {newFolderName === null ? (
+                        <button
+                          onClick={() => setNewFolderName('')}
+                          className="px-2 py-1 rounded-full text-xs shrink-0 border border-dashed border-text-secondary/40 text-text-secondary"
+                        >
+                          + {t('ui.lut.newFolder')}
+                        </button>
+                      ) : (
+                        <input
+                          autoFocus
+                          value={newFolderName}
+                          placeholder={t('ui.lut.folderName')}
+                          onChange={(e) => setNewFolderName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleCreateFolder();
+                            if (e.key === 'Escape') setNewFolderName(null);
+                          }}
+                          onBlur={handleCreateFolder}
+                          className="px-2 py-1 rounded-md text-xs bg-bg-tertiary outline-none w-32 shrink-0"
+                        />
+                      )}
+                    </div>
 
-                    <button
-                      onClick={handleImport}
-                      className="aspect-square rounded-md bg-bg-tertiary border-2 border-dashed border-text-secondary/25 hover:border-accent flex items-center justify-center text-text-secondary hover:text-text-primary transition-all duration-150 cursor-pointer"
-                      data-tooltip={t('ui.lut.import')}
-                    >
-                      <Upload size={18} />
-                    </button>
+                    {visibleGroups.map(([group, groupEntries]) => (
+                      <div key={group || '__root'}>
+                        <span className="text-xs text-text-secondary/80 select-none block mb-1 truncate">
+                          {group || t('ui.lut.customLuts')}
+                        </span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {groupEntries.map(renderSwatch)}
+                          <button
+                            onClick={handleImport}
+                            className="aspect-square rounded-md bg-bg-tertiary border-2 border-dashed border-text-secondary/25 hover:border-accent flex items-center justify-center text-text-secondary hover:text-text-primary transition-all duration-150 cursor-pointer"
+                            data-tooltip={t('ui.lut.import')}
+                          >
+                            <Upload size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {visibleGroups.length === 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={handleImport}
+                          className="aspect-square rounded-md bg-bg-tertiary border-2 border-dashed border-text-secondary/25 hover:border-accent flex items-center justify-center text-text-secondary hover:text-text-primary transition-all duration-150 cursor-pointer"
+                          data-tooltip={t('ui.lut.import')}
+                        >
+                          <Upload size={18} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
