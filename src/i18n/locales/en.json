@@ -2452,7 +2452,11 @@
       "removeLut": "Remove LUT",
       "select": "Select",
       "selectLutFile": "Select a LUT file",
-      "unsupportedFormat": "Unsupported file format(s) detected: .{{ext}}"
+      "unsupportedFormat": "Unsupported file format(s) detected: .{{ext}}",
+      "allLuts": "All",
+      "newFolder": "New folder",
+      "folderName": "Folder name",
+      "importInto": "Import into"
     },
     "slider": {
       "clickToEdit": "Click to edit",
