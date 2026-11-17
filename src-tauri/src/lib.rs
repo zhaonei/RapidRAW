@@ -635,6 +635,8 @@ pub fn run() {
             merge::hdr::save_hdr,
             adjustments::lut_processing::load_and_parse_lut,
             adjustments::lut_processing::list_luts,
+            adjustments::lut_processing::list_lut_folders,
+            adjustments::lut_processing::create_lut_folder,
             adjustments::lut_processing::import_luts,
             adjustments::lut_processing::remove_lut,
             adjustments::lut_processing::generate_lut_previews,
