@@ -37,7 +37,7 @@ jobs:
         run: |
           set -e
           git clone --depth 1 https://github.com/andreavolpato/spektrafilm.git sf
-          git clone --depth 1 https://github.com/SAINTTaiYi/Spektrafilm-android.git port
+          git clone --depth 1 https://github.com/thetechgeekko/Spektrafilm-android.git port
           cp -v port/engine/spektra-core/src/main/assets/spektra/profiles/*.json sf/src/spektrafilm/data/profiles/ || true
           python -m pip install --upgrade pip
           pip install -e ./sf --no-deps
