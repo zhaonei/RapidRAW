@@ -60,8 +60,8 @@ jobs:
                   stocks.append(parts[0].strip())
           stocks = sorted(set(stocks))
 
-          papers = ["ektacolorEdge","enduraPremier","crystalArchive","vision2383","vision2393",
-                    "eternaCP","exr5386","agfaCP30","eternaCP3521XD","ilfochromeCPS1K","ilfochromeCLM1K"]
+          papers = ["ektacolor-edge","endura-premier","crystal-archive","vision-2383","vision-2393",
+                    "eterna-cp","exr-5386","agfa-cp30","eterna-cp-3521xd","ilfochrome-cps-1k","ilfochrome-clm-1k"]
 
           def is_reversal(stock):
               path = os.path.join("Sources/FotufilmCore/Stocks", stock + ".json")
@@ -84,7 +84,7 @@ jobs:
                   r = subprocess.run(args, capture_output=True, text=True)
                   if r.returncode != 0 or not os.path.exists("o.png"):
                       if reversal:
-                          for neutral in ("ektacolorEdge","crystalArchive"):
+                          for neutral in ("ektacolor-edge","crystal-archive"):
                               r2 = subprocess.run([".build/release/fotufilm","lattice.png","o.png","--stock",stock,"--paper",neutral],
                                                   capture_output=True,text=True)
                               if r2.returncode == 0 and os.path.exists("o.png"):
