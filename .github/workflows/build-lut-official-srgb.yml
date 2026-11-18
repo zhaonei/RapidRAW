@@ -1,4 +1,4 @@
-name: Spektrafilm official pairing (sRGB)
+name: Spektrafilm positives (sRGB)
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
               except Exception:
                   continue
               info = d.get("info") or {}
-              if info.get("support") != "film":
+              if info.get("support") != "film" or info.get("type") != "positive":
                   continue
               films.append((info.get("stock"), info.get("type"), info.get("target_print")))
           films = [f for f in films if f[0]]
@@ -110,6 +110,6 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: lut-official-srgb
-          name: Spektrafilm official pairing (sRGB)
+          tag_name: lut-positive-srgb
+          name: Spektrafilm positives (sRGB)
           files: sp-official-33.zip
