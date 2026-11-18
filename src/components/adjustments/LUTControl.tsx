@@ -33,19 +33,6 @@ interface LUTControlProps {
   onDragStateChange?: (isDragging: boolean) => void;
 }
 
-let lutFolderDraft: string | null = null;
-const folderDraftListeners = new Set<() => void>();
-const setLutFolderDraft = (value: string | null) => {
-  lutFolderDraft = value;
-  folderDraftListeners.forEach((listener) => listener());
-};
-const subscribeFolderDraft = (listener: () => void) => {
-  folderDraftListeners.add(listener);
-  return () => folderDraftListeners.delete(listener);
-};
-const getFolderDraft = () => lutFolderDraft;
-const useLutFolderDraft = () => React.useSyncExternalStore(subscribeFolderDraft, getFolderDraft);
-
 const PREVIEW_SIZE = 112;
 const SUPPORTED_EXTENSIONS = ['cube', '3dl', 'png', 'jpg', 'jpeg', 'tiff'];
 
@@ -68,8 +55,6 @@ export default function LUTControl({
   const [entries, setEntries] = useState<LutEntry[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
   const [targetGroup, setTargetGroup] = useState('');
-  const newFolderName = useLutFolderDraft();
-  const setNewFolderName = setLutFolderDraft;
   const [previews, setPreviews] = useState<Record<string, string | null>>({});
   const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
   const previewCache = useRef<Map<string, Record<string, string | null>>>(new Map());
@@ -121,21 +106,22 @@ export default function LUTControl({
   }, []);
 
   const handleCreateFolder = useCallback(async () => {
-    const name = (newFolderName ?? '').trim();
-    if (!name) {
-      setNewFolderName(null);
-      return;
+    const existing = new Set(folders);
+    let name = t('ui.lut.newFolder');
+    let index = 2;
+    while (existing.has(name)) {
+      name = `${t('ui.lut.newFolder')} ${index}`;
+      index += 1;
     }
     try {
       const dirs = await invoke<string[]>('create_lut_folder', { name });
       setFolders(dirs);
       setTargetGroup(name);
-      setNewFolderName(null);
     } catch (err) {
       console.error('Failed to create LUT folder:', err);
       toast.error(String(err));
     }
-  }, [newFolderName]);
+  }, [folders, t]);
 
   useEffect(() => {
     refreshList();
@@ -397,7 +383,7 @@ export default function LUTControl({
                         </button>
                       ))}
                       <button
-                        onClick={() => setNewFolderName('')}
+                        onClick={handleCreateFolder}
                         className="px-2 py-1 rounded-full text-xs shrink-0 border border-dashed border-text-secondary/40 text-text-secondary"
                       >
                         + {t('ui.lut.newFolder')}
@@ -440,41 +426,6 @@ export default function LUTControl({
         )}
       </AnimatePresence>
 
-      {newFolderName !== null && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div
-            className="w-64 rounded-lg bg-bg-secondary p-3 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="mb-2 block text-sm text-text-primary select-none">{t('ui.lut.newFolder')}</span>
-            <input
-              ref={(el) => el?.focus({ preventScroll: true })}
-              value={newFolderName}
-              placeholder={t('ui.lut.folderName')}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateFolder();
-                if (e.key === 'Escape') setNewFolderName(null);
-              }}
-              className="w-full rounded-md bg-bg-tertiary px-2 py-1.5 text-sm outline-none"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                onClick={() => setNewFolderName(null)}
-                className="rounded-md px-3 py-1 text-xs text-text-secondary hover:bg-surface"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateFolder}
-                className="rounded-md bg-accent px-3 py-1 text-xs text-button-text"
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
