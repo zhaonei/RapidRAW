@@ -130,17 +130,17 @@ jobs:
           cd all && for z in *.zip; do [ -f "$z" ] || continue; unzip -q -o "$z" -d ../final; done
           cd ..
           echo "files: $(find final -type f | wc -l)"
-          cd final && zip -q -r ../Spektrafilm-LUT-extra-all.zip . || echo "empty"
+          cd final && zip -q -r ../Spektrafilm-LUT-srgb-extra-all.zip . || echo "empty"
       - uses: actions/upload-artifact@v4
         with:
           name: Spektrafilm-LUT-extra
-          path: Spektrafilm-LUT-extra-all.zip
+          path: Spektrafilm-LUT-srgb-extra-all.zip
           if-no-files-found: warn
           retention-days: 30
       - name: Release asset
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: lut-library-extra
-          name: Spektrafilm extra stocks
-          files: Spektrafilm-LUT-extra-all.zip
+          tag_name: lut-library-srgb
+          name: Spektrafilm LUT library (sRGB)
+          files: Spektrafilm-LUT-srgb-extra-all.zip
