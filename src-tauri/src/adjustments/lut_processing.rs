@@ -205,7 +205,7 @@ pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result
 
         #[cfg(target_os = "android")]
         if is_android_content_uri(source) {
-            if let Err(error) = import_android_lut(source) {
+            if let Err(error) = import_android_lut(source, dir) {
                 log::error!("Failed to import LUT from '{}': {}", source, error);
             }
             continue;
@@ -230,7 +230,7 @@ pub fn import_luts_to_dir(dir: &Path, source_paths: &[String]) -> anyhow::Result
 }
 
 #[cfg(target_os = "android")]
-fn import_android_lut(source: &str) -> anyhow::Result<()> {
+fn import_android_lut(source: &str, dest_dir: &Path) -> anyhow::Result<()> {
     let resolved_name = resolve_android_content_uri_name(source)
         .map_err(|e| anyhow!("Failed to resolve content URI: {}", e))?;
     let stem = Path::new(&resolved_name)
@@ -246,12 +246,8 @@ fn import_android_lut(source: &str) -> anyhow::Result<()> {
     let bytes = read_android_content_uri(source)
         .map_err(|e| anyhow!("Failed to read content URI: {}", e))?;
 
-    let cache_path = get_android_cached_lut_path(source, &extension)?;
-    let cache_dir = cache_path
-        .parent()
-        .ok_or_else(|| anyhow!("Invalid cache path"))?
-        .to_path_buf();
-    let destination = unique_destination(&cache_dir, &stem, &extension);
+    std::fs::create_dir_all(dest_dir)?;
+    let destination = unique_destination(dest_dir, &stem, &extension);
     std::fs::write(&destination, &bytes)?;
     Ok(())
 }
