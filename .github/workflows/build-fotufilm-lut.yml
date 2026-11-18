@@ -5,11 +5,13 @@ on:
 
 jobs:
   validate:
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - name: Install Halide
-        run: brew install halide
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '5.10'
 
       - name: Clone fotufilm
         run: |
@@ -18,8 +20,10 @@ jobs:
 
       - name: Build CLI
         working-directory: ff
+        env:
+          FOTUFILM_DISABLE_HALIDE: '1'
         run: |
-          swift build -c release --product fotufilm 2>&1 | tail -40
+          swift build -c release --product fotufilm 2>&1 | tail -60
 
       - name: List stocks
         working-directory: ff
