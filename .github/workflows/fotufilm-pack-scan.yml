@@ -27,6 +27,15 @@ jobs:  # probe engine exports + build wasm
           channel: 'stable'
           cache: true
 
+      - name: Run prepare.sh (runtime assets)
+        run: |
+          cd ff/flutter
+          chmod +x tool/prepare.sh
+          ./tool/prepare.sh 2>&1 | tail -30
+          echo '--- packs after prepare ---'
+          find .. -name 'index.json' -path '*pack*' | head -20
+          find .. -type d -name packs | head -10
+
       - name: Build web app (generates packs)
         run: |
           cd ff/web && npm ci
