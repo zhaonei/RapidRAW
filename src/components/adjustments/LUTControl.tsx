@@ -400,7 +400,7 @@ export default function LUTControl({
                         </button>
                       ) : (
                         <input
-                          autoFocus
+                          ref={(el) => el?.focus({ preventScroll: true })}
                           value={newFolderName}
                           placeholder={t('ui.lut.folderName')}
                           onChange={(e) => setNewFolderName(e.target.value)}
