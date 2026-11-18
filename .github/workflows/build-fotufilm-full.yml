@@ -59,31 +59,41 @@ jobs:
               if parts and parts[0].strip():
                   stocks.append(parts[0].strip())
           stocks = sorted(set(stocks))
-          papers = ["ektacolorEdge","enduraPremier","crystalArchive","vision2383","vision2393",
-                    "etternaCP","exr5386","agfaCP30","eternaCP3521XD","ilfochromeCPS1K","ilfochromeCLM1K"]
+
           papers = ["ektacolorEdge","enduraPremier","crystalArchive","vision2383","vision2393",
                     "eternaCP","exr5386","agfaCP30","eternaCP3521XD","ilfochromeCPS1K","ilfochromeCLM1K"]
-          style = open("paper_style.txt").read().strip() if os.path.exists("paper_style.txt") else None
-          print("stocks", len(stocks), "papers", len(papers), "style", style)
 
-          def snake(name):
-              return "".join("_"+c.lower() if c.isupper() else c for c in name).lstrip("_")
+          def is_reversal(stock):
+              path = os.path.join("Sources/FotufilmCore/Stocks", stock + ".json")
+              try:
+                  data = json.load(open(path))
+                  return bool(data.get("isReversal", False))
+              except Exception:
+                  return False
 
           os.makedirs("cubes", exist_ok=True)
           ok = 0
+          skipped = 0
           for stock in stocks:
-              for paper in papers:
-                  cands = [paper] if style is None else ([paper] if style == paper else [paper, snake(paper)])
-                  if style:
-                      cands = [style if style == paper else paper, snake(paper)]
-                  prod = None
-                  for cand in cands:
-                      r = subprocess.run([".build/release/fotufilm","lattice.png","o.png","--stock",stock,"--paper",cand],
-                                         capture_output=True,text=True)
-                      if r.returncode == 0 and os.path.exists("o.png"):
-                          prod = cand; break
-                  if not prod:
-                      print("SKIP", stock, paper); continue
+              reversal = is_reversal(stock)
+              combos = [None] if reversal else papers
+              for paper in combos:
+                  args = [".build/release/fotufilm","lattice.png","o.png","--stock",stock]
+                  if paper:
+                      args += ["--paper", paper]
+                  r = subprocess.run(args, capture_output=True, text=True)
+                  if r.returncode != 0 or not os.path.exists("o.png"):
+                      if reversal:
+                          for neutral in ("ektacolorEdge","crystalArchive"):
+                              r2 = subprocess.run([".build/release/fotufilm","lattice.png","o.png","--stock",stock,"--paper",neutral],
+                                                  capture_output=True,text=True)
+                              if r2.returncode == 0 and os.path.exists("o.png"):
+                                  paper = neutral + "_fallback"
+                                  break
+                          else:
+                              print("SKIP", stock, "reversal"); skipped += 1; continue
+                      else:
+                          print("SKIP", stock, paper); skipped += 1; continue
                   im = Image.open("o.png").convert("RGB"); w,h = im.size; p = im.load()
                   lines = []
                   for b in range(N):
@@ -92,8 +102,9 @@ jobs:
                               k = (b*N+g)*N+r0
                               R,G,B = p[k % w, k // w]
                               lines.append("%.6f %.6f %.6f" % (R/255, G/255, B/255))
-                  with open(f"cubes/ff_{stock}__{paper.replace(' ','')}.cube","w") as f:
-                      f.write('TITLE "ff %s %s"\nLUT_3D_SIZE 33\n' % (stock, paper))
+                  label = "reversal" if paper is None else paper.replace(" ", "")
+                  with open(f"cubes/ff_{stock}__{label}.cube","w") as f:
+                      f.write('TITLE "ff %s %s"\nLUT_3D_SIZE 33\n' % (stock, label))
                       f.write("\n".join(lines)+"\n")
                   ok += 1
                   if ok % 20 == 0: print("done", ok)
