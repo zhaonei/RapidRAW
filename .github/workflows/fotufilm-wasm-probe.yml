@@ -38,6 +38,17 @@ jobs:  # probe engine exports + build wasm
           chmod +x tool/bundle-engine.sh
           ./tool/bundle-engine.sh 2>&1 | tail -40
 
+      - name: Scan for packs and assets
+        if: always()
+        run: |
+          echo '--- large files in ff (>=200KB) ---'
+          find ff -type f -size +200k -printf '%10s %p\n' 2>/dev/null | sort -rn | head -40
+          echo '--- pack/bin/json candidates ---'
+          find ff -type f \( -name '*.pack' -o -name '*.bin' -o -name '*.ffpack' \) | head -40
+          echo '--- build web assets ---'
+          ls -l ff/flutter/build/web/assets 2>/dev/null | head -20
+          du -sh ff/flutter/build/web 2>/dev/null
+
       - name: List produced wasm artifacts
         if: always()
         run: |
