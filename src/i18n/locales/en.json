@@ -2456,7 +2456,10 @@
       "allLuts": "All",
       "newFolder": "New folder",
       "folderName": "Folder name",
-      "importInto": "Import into"
+      "importInto": "Import into",
+      "cancel": "Cancel",
+      "confirm": "Create",
+      "folderNameRequired": "Folder name required"
     },
     "slider": {
       "clickToEdit": "Click to edit",
