@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import Slider from '../ui/Slider';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useLutFolderDialog } from '../../store/useLutFolderDialog';
 
 interface LutEntry {
   name: string;
@@ -105,23 +106,13 @@ export default function LUTControl({
     }
   }, []);
 
-  const handleCreateFolder = useCallback(async () => {
-    const existing = new Set(folders);
-    let name = t('ui.lut.newFolder');
-    let index = 2;
-    while (existing.has(name)) {
-      name = `${t('ui.lut.newFolder')} ${index}`;
-      index += 1;
-    }
-    try {
-      const dirs = await invoke<string[]>('create_lut_folder', { name });
-      setFolders(dirs);
-      setTargetGroup(name);
-    } catch (err) {
-      console.error('Failed to create LUT folder:', err);
-      toast.error(String(err));
-    }
-  }, [folders, t]);
+  const openFolderDialog = useLutFolderDialog((state) => state.open);
+  const folderRevision = useLutFolderDialog((state) => state.revision);
+
+  useEffect(() => {
+    if (folderRevision === 0) return;
+    refreshList();
+  }, [folderRevision, refreshList]);
 
   useEffect(() => {
     refreshList();
@@ -383,7 +374,7 @@ export default function LUTControl({
                         </button>
                       ))}
                       <button
-                        onClick={handleCreateFolder}
+                        onClick={openFolderDialog}
                         className="px-2 py-1 rounded-full text-xs shrink-0 border border-dashed border-text-secondary/40 text-text-secondary"
                       >
                         + {t('ui.lut.newFolder')}
