@@ -5,11 +5,11 @@ on:
 
 jobs:
   validate:
-    runs-on: macos-13
+    runs-on: macos-26
     timeout-minutes: 90
     steps:
-      - name: Install Halide
-        run: brew install halide
+      - name: Install deps
+        run: brew install halide libraw little-cms2 libtiff
 
       - name: Clone fotufilm
         run: |
