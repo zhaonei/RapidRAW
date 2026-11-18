@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Panel } from '../../types/ui';
+import { useEditorStore } from '../../store/useEditorStore';
 
 const DRAG_THRESHOLD = 4;
 
@@ -33,6 +34,7 @@ export default function MobileDrawer({
   footer,
   switcher,
 }: MobileDrawerProps) {
+  const isSliderDragging = useEditorStore((state) => state.isSliderDragging);
   const dragState = useRef<{ startY: number; startHeight: number; pointerId: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const gripRef = useRef<HTMLDivElement | null>(null);
@@ -110,9 +112,11 @@ export default function MobileDrawer({
       )}
       style={{
         height: isHidden ? 0 : height,
-        opacity: isHidden ? 0 : 1,
+        opacity: isHidden ? 0 : isSliderDragging ? 0.45 : 1,
         pointerEvents: isHidden ? 'none' : 'auto',
-        transition: isDragging ? 'none' : 'height 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+        transition: isDragging
+          ? 'none'
+          : 'height 220ms cubic-bezier(0.32, 0.72, 0, 1), opacity 140ms ease-out',
         overscrollBehavior: 'contain',
       }}
       data-mobile-drawer
@@ -128,7 +132,7 @@ export default function MobileDrawer({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="flex h-6 shrink-0 items-center justify-center"
+        className="flex h-8 shrink-0 items-center justify-center"
         style={{ touchAction: 'none' }}
       >
         <div
