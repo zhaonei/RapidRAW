@@ -21,6 +21,7 @@ import SettingsPanel from './components/panel/SettingsPanel';
 import ExportPanel from './components/panel/right/ExportPanel';
 import GlobalTooltip from './components/ui/GlobalTooltip';
 import AppModals from './components/modals/AppModals';
+import LutFolderDialog from './components/modals/LutFolderDialog';
 
 import SidePanelArea from './components/panel/SidePanelArea';
 import { PANEL_ICONS } from './components/panel/PanelSwitcher';
@@ -1095,7 +1096,8 @@ function App() {
             </DragOverlay>
           </DndContext>
         </div>
-        <AppModals
+        <LutFolderDialog />
+                  <AppModals
           handleImageSelect={handleImageSelect}
           handleSavePanorama={handleSavePanorama}
           handleStartPanorama={handleStartPanorama}
