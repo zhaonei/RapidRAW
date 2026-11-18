@@ -361,16 +361,7 @@ export default function LUTControl({
                   )}
                 </div>
 
-                {customLuts.length === 0 ? (
-                  <button
-                    onClick={handleImport}
-                    className="w-full flex items-center justify-center gap-1.5 py-4 rounded-md bg-bg-tertiary hover:bg-surface border-2 border-dashed border-text-secondary/20 hover:border-text-secondary/40 text-sm text-text-primary transition-colors cursor-pointer"
-                  >
-                    <Upload size={16} />
-                    {t('ui.lut.import')}
-                  </button>
-                ) : (
-                  <div className="space-y-3">
+                <div className="space-y-3">
                     <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1">
                       <button
                         onClick={() => setTargetGroup('')}
@@ -443,8 +434,7 @@ export default function LUTControl({
                         </button>
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </motion.div>
