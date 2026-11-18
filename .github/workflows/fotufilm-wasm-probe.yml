@@ -1,0 +1,54 @@
+name: Fotufilm WASM probe
+
+on:
+  workflow_dispatch:
+
+jobs:  # probe engine exports + build wasm
+  probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout fotufilm (fork with web build)
+        uses: actions/checkout@v4
+        with:
+          repository: zhaonei/fotufilm-engine
+          path: ff
+          submodules: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install emsdk
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+
+      - name: Show engine exports (source)
+        run: |
+          grep -n 'EMSCRIPTEN_KEEPALIVE\|extern "C"' ff/web/engine/*.cpp | head -60
+
+      - name: Build engine wasm
+        run: |
+          source ./emsdk/emsdk_env.sh
+          cd ff/flutter
+          chmod +x tool/bundle-engine.sh
+          ./tool/bundle-engine.sh 2>&1 | tail -40
+
+      - name: List produced wasm artifacts
+        if: always()
+        run: |
+          find ff -name '*.wasm' -o -name '*.js' -path '*engine*' | head -20
+          ls -l ff/flutter/build/web 2>/dev/null | head
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wasm-probe
+          path: |
+            ff/flutter/build/web
+          retention-days: 3
+          if-no-files-found: warn
