@@ -29,7 +29,7 @@ jobs:
           .build/release/fotufilm --list-stocks --list-stock-capabilities | head -40 || true
 
       - name: Python deps
-        run: python3 -m pip install --quiet pillow numpy
+        run: python3 -m pip install --break-system-packages --quiet pillow numpy
 
       - name: Bake one stock
         working-directory: ff
