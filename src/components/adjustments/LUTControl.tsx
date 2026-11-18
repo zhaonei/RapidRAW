@@ -382,27 +382,12 @@ export default function LUTControl({
                           {folder}
                         </button>
                       ))}
-                      {newFolderName === null ? (
-                        <button
-                          onClick={() => setNewFolderName('')}
-                          className="px-2 py-1 rounded-full text-xs shrink-0 border border-dashed border-text-secondary/40 text-text-secondary"
-                        >
-                          + {t('ui.lut.newFolder')}
-                        </button>
-                      ) : (
-                        <input
-                          ref={(el) => el?.focus({ preventScroll: true })}
-                          value={newFolderName}
-                          placeholder={t('ui.lut.folderName')}
-                          onChange={(e) => setNewFolderName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleCreateFolder();
-                            if (e.key === 'Escape') setNewFolderName(null);
-                          }}
-                          onBlur={handleCreateFolder}
-                          className="px-2 py-1 rounded-md text-xs bg-bg-tertiary outline-none w-32 shrink-0"
-                        />
-                      )}
+                      <button
+                        onClick={() => setNewFolderName('')}
+                        className="px-2 py-1 rounded-full text-xs shrink-0 border border-dashed border-text-secondary/40 text-text-secondary"
+                      >
+                        + {t('ui.lut.newFolder')}
+                      </button>
                     </div>
 
                     {visibleGroups.map(([group, groupEntries]) => (
@@ -440,6 +425,45 @@ export default function LUTControl({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {newFolderName !== null && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+          onClick={() => setNewFolderName(null)}
+        >
+          <div
+            className="w-64 rounded-lg bg-bg-secondary p-3 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="mb-2 block text-sm text-text-primary select-none">{t('ui.lut.newFolder')}</span>
+            <input
+              ref={(el) => el?.focus({ preventScroll: true })}
+              value={newFolderName}
+              placeholder={t('ui.lut.folderName')}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateFolder();
+                if (e.key === 'Escape') setNewFolderName(null);
+              }}
+              className="w-full rounded-md bg-bg-tertiary px-2 py-1.5 text-sm outline-none"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => setNewFolderName(null)}
+                className="rounded-md px-3 py-1 text-xs text-text-secondary hover:bg-surface"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                className="rounded-md bg-accent px-3 py-1 text-xs text-button-text"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
