@@ -33,6 +33,19 @@ interface LUTControlProps {
   onDragStateChange?: (isDragging: boolean) => void;
 }
 
+let lutFolderDraft: string | null = null;
+const folderDraftListeners = new Set<() => void>();
+const setLutFolderDraft = (value: string | null) => {
+  lutFolderDraft = value;
+  folderDraftListeners.forEach((listener) => listener());
+};
+const subscribeFolderDraft = (listener: () => void) => {
+  folderDraftListeners.add(listener);
+  return () => folderDraftListeners.delete(listener);
+};
+const getFolderDraft = () => lutFolderDraft;
+const useLutFolderDraft = () => React.useSyncExternalStore(subscribeFolderDraft, getFolderDraft);
+
 const PREVIEW_SIZE = 112;
 const SUPPORTED_EXTENSIONS = ['cube', '3dl', 'png', 'jpg', 'jpeg', 'tiff'];
 
@@ -55,7 +68,8 @@ export default function LUTControl({
   const [entries, setEntries] = useState<LutEntry[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
   const [targetGroup, setTargetGroup] = useState('');
-  const [newFolderName, setNewFolderName] = useState<string | null>(null);
+  const newFolderName = useLutFolderDraft();
+  const setNewFolderName = setLutFolderDraft;
   const [previews, setPreviews] = useState<Record<string, string | null>>({});
   const [isLoadingPreviews, setIsLoadingPreviews] = useState(false);
   const previewCache = useRef<Map<string, Record<string, string | null>>>(new Map());
@@ -427,10 +441,7 @@ export default function LUTControl({
       </AnimatePresence>
 
       {newFolderName !== null && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
-          onClick={() => setNewFolderName(null)}
-        >
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div
             className="w-64 rounded-lg bg-bg-secondary p-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
