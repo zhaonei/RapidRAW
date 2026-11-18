@@ -47,9 +47,11 @@ jobs:
           for path in glob.glob("sf/src/spektrafilm/data/profiles/*.json"):
               data = json.load(open(path))
               meta = data.get("metadata")
-              if isinstance(meta, dict) and meta.pop("derived_from", None) is not None:
-                  json.dump(data, open(path, "w"), indent=2)
-                  print("stripped", os.path.basename(path))
+              if isinstance(meta, dict):
+                  dropped = [k for k in ("derived_from", "derivation", "derivedFrom") if meta.pop(k, None) is not None]
+                  if dropped:
+                      json.dump(data, open(path, "w"), indent=2)
+                      print("stripped", os.path.basename(path), dropped)
           PYJSON
 
       - name: Install engine deps
