@@ -1,0 +1,115 @@
+name: Spektrafilm official pairing (sRGB)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install engine
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/andreavolpato/spektrafilm.git sf
+          python -m pip install --upgrade pip
+          pip install -e ./sf --no-deps
+          pip install numpy scipy colour-science scikit-image opt-einsum numba Pillow matplotlib OpenImageIO pyfftw rawpy exiv2 lensfunpy tomli
+      - name: Bake official pairings
+        run: |
+          set -e
+          python - <<'PYBAKE'
+          import json, glob, subprocess, os
+          films = []
+          for path in glob.glob("sf/src/spektrafilm/data/profiles/*.json"):
+              try:
+                  d = json.load(open(path))
+              except Exception:
+                  continue
+              info = d.get("info") or {}
+              if info.get("support") != "film":
+                  continue
+              films.append((info.get("stock"), info.get("type"), info.get("target_print")))
+          films = [f for f in films if f[0]]
+          films.sort()
+          print("films:", len(films))
+          os.makedirs("out", exist_ok=True)
+          for stock, kind, print_id in films:
+              args = ["spektrafilm-lut", "build", "--film", stock]
+              if kind == "negative" and print_id:
+                  args += ["--print", print_id]
+              args += ["--input", "srgb", "--output", "srgb", "--topology", "1lut",
+                       "--resolution", "33", "--out", f"./out/{stock}"]
+              print("BUILD", stock, "type=", kind, "print=", print_id)
+              r = subprocess.run(args, capture_output=True, text=True)
+              if r.returncode != 0:
+                  print("FAILED", stock, (r.stderr or r.stdout)[-400:])
+          PYBAKE
+      - name: Rename and prescale
+        run: |
+          python - <<'PYPOST'
+          import glob, os, re, shutil
+          P = 0.72
+          def read_cube(path):
+              hdr, size, data = [], None, []
+              for line in open(path):
+                  s = line.strip()
+                  if not s:
+                      hdr.append(line); continue
+                  if s.startswith("#") or s[0].isalpha():
+                      hdr.append(line)
+                      if s.upper().startswith("LUT_3D_SIZE"):
+                          size = int(s.split()[-1])
+                      continue
+                  data.append(tuple(map(float, s.split())))
+              return hdr, size, data
+          def sample(data, size, rgb):
+              pos = [min(max(v, 0.0), 1.0) * (size - 1) for v in rgb]
+              i0 = [min(int(v), size - 2) for v in pos]
+              f = [v - i for v, i in zip(pos, i0)]
+              idx = lambda r, g, b: (b * size + g) * size + r
+              out = [0.0, 0.0, 0.0]
+              for dz in (0, 1):
+                  for dy in (0, 1):
+                      for dx in (0, 1):
+                          w = (f[0] if dx else 1-f[0]) * (f[1] if dy else 1-f[1]) * (f[2] if dz else 1-f[2])
+                          c = data[idx(i0[0]+dx, i0[1]+dy, i0[2]+dz)]
+                          for k in range(3):
+                              out[k] += w * c[k]
+              return out
+          os.makedirs("stage", exist_ok=True)
+          for path in glob.glob("out/*/*.cube") + glob.glob("out/*/*/*.cube"):
+              hdr, size, data = read_cube(path)
+              if not size:
+                  continue
+              stock = os.path.relpath(path, "out").split(os.sep)[0]
+              new = []
+              for b in range(size):
+                  for g in range(size):
+                      for r in range(size):
+                          c = sample(data, size, (r/(size-1)*P, g/(size-1)*P, b/(size-1)*P))
+                          new.append([min(1.0, max(0.0, v)) for v in c])
+              target = os.path.join("stage", f"sp-{stock}.cube")
+              with open(target, "w") as fh:
+                  fh.write('TITLE "sp %s"\nLUT_3D_SIZE %d\n' % (stock, size))
+                  for c in new:
+                      fh.write("%.6f %.6f %.6f\n" % tuple(c))
+              print("wrote", target)
+          PYPOST
+          cd stage && zip -q -r ../sp-official-33.zip . && cd ..
+          ls -l sp-official-33.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sp-official-33
+          path: sp-official-33.zip
+      - name: Release
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: lut-official-srgb
+          name: Spektrafilm official pairing (sRGB)
+          files: sp-official-33.zip
