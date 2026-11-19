@@ -20,8 +20,15 @@ jobs:
       - name: Bake positives via runtime API
         run: |
           python - <<'PY'
-          import glob, json, os, numpy as np
-          from spektrafilm import create_params, simulate
+          import glob, json, os, traceback
+          try:
+              import numpy as np
+          except Exception as e:
+              print("::error::numpy " + repr(e)); raise SystemExit(0)
+          try:
+              from spektrafilm import create_params, simulate
+          except Exception as e:
+              print("::error::import " + repr(e)); raise SystemExit(0)
           films=[]
           for path in glob.glob("sf/src/spektrafilm/data/profiles/*.json"):
               try: d=json.load(open(path))
@@ -48,7 +55,8 @@ jobs:
                       for c in enc: fh.write("%.6f %.6f %.6f\n"%tuple(c))
                   print("OK",f)
               except Exception as e:
-                  print(f"::error::{f} {repr(e)[:200]}")
+                  print(f"::error::{f} {repr(e)[:160]}")
+                  traceback.print_exc()
           PY
       - name: Package
         run: |
