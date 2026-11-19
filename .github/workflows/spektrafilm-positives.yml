@@ -35,15 +35,16 @@ jobs:
           os.makedirs("out", exist_ok=True)
           for f in films:
               try:
-                  spec = BundleSpec(film_profile=f, print_profiles=(), input_color_space="sRGB",
-                                    output_color_space="sRGB", topology="1lut", resolution=33)
+                  spec = BundleSpec(film_profile=f, print_profiles=(), input_color_space="srgb",
+                                    output_color_space="srgb", topology="1lut", resolution=33)
                   b = BundleBuilder(spec); res = b.build(); b.write(res, "./out/"+f)
                   print("OK", f)
               except Exception as e:
-                  print("FAIL", f, repr(e)[:200])
+                  print(f"::error::{f} {repr(e)[:200]}")
           PY
       - name: Package
         run: |
+          echo "--- cubes found ---"
           find out -name '*.cube' | head -20
           python - <<'PY'
           import glob, os, shutil
