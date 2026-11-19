@@ -1,0 +1,62 @@
+name: Spektrafilm positives (no print)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install engine
+        run: |
+          git clone --depth 1 https://github.com/andreavolpato/spektrafilm.git sf
+          python -m pip install --upgrade pip
+          pip install -e ./sf --no-deps
+          pip install numpy scipy colour-science scikit-image opt-einsum numba Pillow matplotlib OpenImageIO pyfftw rawpy exiv2 lensfunpy tomli
+      - name: Bake positives without print
+        run: |
+          python - <<'PY'
+          import glob, json, os, traceback
+          from spektrafilm_lut_creator.builders import BundleBuilder
+          from spektrafilm_lut_creator.bundles import BundleSpec
+          films=[]
+          for path in glob.glob("sf/src/spektrafilm/data/profiles/*.json"):
+              try: d=json.load(open(path))
+              except Exception: continue
+              info=d.get("info") or {}
+              if info.get("support")=="film" and info.get("type")=="positive":
+                  films.append(info.get("stock"))
+          films=sorted(f for f in films if f)
+          print("positive films", films)
+          os.makedirs("out", exist_ok=True)
+          for f in films:
+              try:
+                  spec = BundleSpec(film_profile=f, print_profiles=(), input_color_space="sRGB",
+                                    output_color_space="sRGB", topology="1lut", resolution=33)
+                  b = BundleBuilder(spec); res = b.build(); b.write(res, "./out/"+f)
+                  print("OK", f)
+              except Exception as e:
+                  print("FAIL", f, repr(e)[:200])
+          PY
+      - name: Package
+        run: |
+          find out -name '*.cube' | head -20
+          python - <<'PY'
+          import glob, os, shutil
+          os.makedirs("stage", exist_ok=True)
+          for p in glob.glob("out/**/*.cube", recursive=True):
+              film = os.path.relpath(p, "out").split(os.sep)[0]
+              shutil.copy(p, os.path.join("stage", f"sp-{film}__direct.cube"))
+          print("packed", len(glob.glob("stage/*.cube")))
+          PY
+          cd stage && zip -q -r ../spektrafilm-positives.zip . && cd ..
+          ls -lh spektrafilm-positives.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spektrafilm-positives
+          path: spektrafilm-positives.zip
+          if-no-files-found: error
