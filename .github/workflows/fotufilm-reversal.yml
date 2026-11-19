@@ -1,0 +1,59 @@
+name: Fotufilm reversals (no prescale)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bake:
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - run: brew install halide libraw little-cms2 libtiff
+      - run: git clone --depth 1 https://github.com/zhaonei/fotufilm-engine.git ff
+      - name: Build CLI
+        working-directory: ff
+        run: swift build -c release --product fotufilm 2>&1 | tail -20
+      - run: python3 -m pip install --break-system-packages --quiet pillow numpy
+      - name: Bake reversals
+        working-directory: ff
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from PIL import Image
+          N=33; total=N**3; W=189; H=(total+W-1)//W
+          img=Image.new("RGB",(W,H)); px=img.load(); i=0
+          for b in range(N):
+              for g in range(N):
+                  for r in range(N):
+                      px[i%W, i//W]=(round(r*255/(N-1)),round(g*255/(N-1)),round(b*255/(N-1))); i+=1
+          img.save("lattice.png")
+          stocks=[]
+          for line in subprocess.run([".build/release/fotufilm","--list-stocks"],capture_output=True,text=True).stdout.splitlines():
+              if line.strip(): stocks.append(line.split("\t")[0].strip())
+          os.makedirs("cubes",exist_ok=True); n=0
+          for s in sorted(set(stocks)):
+              p=os.path.join("Sources/FotufilmCore/Stocks", s+".json")
+              try: rev=bool(json.load(open(p)).get("isReversal",False))
+              except Exception: rev=False
+              if not rev: continue
+              r=subprocess.run([".build/release/fotufilm","lattice.png","o.png","--stock",s],capture_output=True,text=True)
+              if r.returncode or not os.path.exists("o.png"):
+                  print("SKIP",s); continue
+              im=Image.open("o.png").convert("RGB"); w,h=im.size; q=im.load()
+              lines=[]
+              for b in range(N):
+                  for g in range(N):
+                      for rr in range(N):
+                          k=(b*N+g)*N+rr; R,G,B=q[k%w,k//w]
+                          lines.append("%.6f %.6f %.6f"%(R/255,G/255,B/255))
+              open(f"cubes/ff_{s}__screen.cube","w").write('TITLE "ff %s screen"\nLUT_3D_SIZE 33\n'%s+"\n".join(lines)+"\n")
+              n+=1
+          print("reversal cubes",n)
+          PY
+          cd cubes && zip -q -r ../fotufilm-reversal.zip . && cd ..
+          ls -lh fotufilm-reversal.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fotufilm-reversal
+          path: ff/fotufilm-reversal.zip
+          if-no-files-found: error
