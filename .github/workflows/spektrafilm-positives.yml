@@ -17,12 +17,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ./sf --no-deps
           pip install numpy scipy colour-science scikit-image opt-einsum numba Pillow matplotlib OpenImageIO pyfftw rawpy exiv2 lensfunpy tomli
-      - name: Bake positives without print
+      - name: Bake positives via runtime API
         run: |
           python - <<'PY'
-          import glob, json, os, traceback
-          from spektrafilm_lut_creator.builders import BundleBuilder
-          from spektrafilm_lut_creator.bundles import BundleSpec
+          import glob, json, os, numpy as np
+          from spektrafilm import create_params, simulate
           films=[]
           for path in glob.glob("sf/src/spektrafilm/data/profiles/*.json"):
               try: d=json.load(open(path))
@@ -32,13 +31,22 @@ jobs:
                   films.append(info.get("stock"))
           films=sorted(f for f in films if f)
           print("positive films", films)
+          N=33
+          r=np.linspace(0,1,N,dtype=np.float32)
+          grid=np.stack(np.meshgrid(r,r,r,indexing="ij"),axis=-1).reshape(-1,3)
+          img=grid.reshape(1,-1,3)
           os.makedirs("out", exist_ok=True)
           for f in films:
               try:
-                  spec = BundleSpec(film_profile=f, print_profiles=(), input_color_space="srgb",
-                                    output_color_space="srgb", topology="1lut", resolution=33)
-                  b = BundleBuilder(spec); res = b.build(); b.write(res, "./out/"+f)
-                  print("OK", f)
+                  params=create_params(film_profile=f, print_profile=None)
+                  res=simulate(img, params)
+                  arr=np.asarray(res).reshape(-1,3)[:N**3]
+                  enc=np.where(arr<=0.0031308, arr*12.92, 1.055*np.power(np.clip(arr,0,None),1/2.4)-0.055)
+                  enc=np.clip(enc,0,1)
+                  with open(f"out/{f}.cube","w") as fh:
+                      fh.write('TITLE "%s direct"\nLUT_3D_SIZE %d\n'%(f,N))
+                      for c in enc: fh.write("%.6f %.6f %.6f\n"%tuple(c))
+                  print("OK",f)
               except Exception as e:
                   print(f"::error::{f} {repr(e)[:200]}")
           PY
