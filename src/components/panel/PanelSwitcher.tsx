@@ -33,7 +33,7 @@ export const PANEL_ICONS: Record<Panel, LucideIcon> = {
   [Panel.Filmstrip]: Film,
 };
 
-export const PANEL_TITLES: Record<Panel, ParseKeys> = {
+const PANEL_TITLES: Record<Panel, ParseKeys> = {
   [Panel.Metadata]: 'editor.switcher.tooltips.info',
   [Panel.Adjustments]: 'editor.switcher.tooltips.adjust',
   [Panel.Crop]: 'editor.switcher.tooltips.crop',
@@ -282,19 +282,6 @@ export default function PanelSwitcher({
   );
 }
 
-const MOBILE_PANEL_ORDER: Panel[] = [
-  Panel.Adjustments,
-  Panel.Crop,
-  Panel.Masks,
-  Panel.Ai,
-  Panel.Presets,
-  Panel.Filmstrip,
-  Panel.Metadata,
-  Panel.Export,
-  Panel.FolderTree,
-  Panel.Tethering,
-];
-
 export function MobilePanelSwitcher({
   activePanel,
   onPanelSelect,
@@ -304,22 +291,28 @@ export function MobilePanelSwitcher({
   onPanelSelect: (id: Panel) => void;
   placement?: 'bottom' | 'right';
 }) {
-  const { t } = useTranslation();
-  const activeView = useUIStore((s) => s.activeView);
-  const panels = MOBILE_PANEL_ORDER.filter((panel) => panel !== Panel.Filmstrip || activeView === 'editor');
+  const MOBILE_PANELS = [
+    Panel.Metadata,
+    Panel.Adjustments,
+    Panel.Crop,
+    Panel.Masks,
+    Panel.Ai,
+    Panel.Presets,
+    Panel.Export,
+  ];
 
   const isVertical = placement === 'right';
 
   return (
     <div
       className={clsx(
-        'flex items-center p-1.5 gap-1 shrink-0 custom-scrollbar overscroll-contain',
+        'flex items-center p-1.5 gap-1 shrink-0 custom-scrollbar',
         isVertical
           ? 'flex-col overflow-y-auto h-full border-l border-surface'
           : 'flex-row overflow-x-auto w-full border-t border-surface',
       )}
     >
-      {panels.map((id) => {
+      {MOBILE_PANELS.map((id) => {
         const Icon = PANEL_ICONS[id];
         const isActive = activePanel === id;
 
@@ -328,12 +321,11 @@ export function MobilePanelSwitcher({
             key={id}
             onClick={() => onPanelSelect(id)}
             className={clsx(
-              'flex items-center justify-center p-2.5 min-w-10 rounded-md shrink-0 transition-colors',
+              'p-2 rounded-md shrink-0 transition-colors',
               isActive
                 ? 'bg-surface text-text-primary'
                 : 'text-text-secondary hover:bg-surface hover:text-text-primary',
             )}
-            data-tooltip={t(PANEL_TITLES[id])}
           >
             <Icon size={20} />
           </button>
