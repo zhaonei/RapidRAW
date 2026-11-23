@@ -136,6 +136,15 @@ struct GlobalAdjustments {
     sharpness_threshold: f32,
 
     monochrome: MonochromeSettings,
+
+    diffusion_enabled: f32,
+    diffusion_direct: f32,
+    diffusion_scattered: f32,
+    diffusion_w0: f32,
+    diffusion_w1: f32,
+    diffusion_w2: f32,
+    diffusion_scale: f32,
+    _pad_diffusion: f32,
 }
 
 struct MaskAdjustments {
@@ -233,6 +242,9 @@ const HSL_RANGES: array<HslRange, 8> = array<HslRange, 8>(
 @group(0) @binding(13) var tone_base_texture: texture_2d<f32>;
 @group(0) @binding(14) var haze_texture: texture_2d<f32>;
 @group(0) @binding(15) var airlight_texture: texture_2d<f32>;
+@group(0) @binding(16) var diffusion_blur0: texture_2d<f32>;
+@group(0) @binding(17) var diffusion_blur1: texture_2d<f32>;
+@group(0) @binding(18) var diffusion_blur2: texture_2d<f32>;
 
 const GF_LUMA_FLOOR: f32 = 1.0e-4;
 const HZ_OMEGA: f32 = 0.95;
@@ -2025,6 +2037,17 @@ fn light_protection(color: vec3<f32>) -> f32 {
     return 1.0 - smoothstep(1.0, 2.2, get_luma(max(color, vec3<f32>(0.0))));
 }
 
+fn apply_diffusion(color: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
+    if (adjustments.global.diffusion_enabled < 0.5) { return color; }
+    let b0 = textureSampleLevel(diffusion_blur0, light_sampler, uv, 0.0).rgb;
+    let b1 = textureSampleLevel(diffusion_blur1, light_sampler, uv, 0.0).rgb;
+    let b2 = textureSampleLevel(diffusion_blur2, light_sampler, uv, 0.0).rgb;
+    let scatter = b0 * adjustments.global.diffusion_w0
+        + b1 * adjustments.global.diffusion_w1
+        + b2 * adjustments.global.diffusion_w2;
+    return color * adjustments.global.diffusion_direct + scatter * adjustments.global.diffusion_scattered;
+}
+
 fn apply_glow_bloom(color: vec3<f32>, bloom: vec3<f32>, amount: f32) -> vec3<f32> {
     let luma = get_luma(max(color, vec3<f32>(0.0)));
     let depth = 0.5 + 0.5 * smoothstep(0.0, 0.2, luma);
@@ -2268,6 +2291,10 @@ fn main(
     }
 
     var composite_rgb_linear = processed_rgb;
+    if (has_feature(F_LUT) || true) {
+        let diffusion_uv = (vec2<f32>(absolute_coord) + 0.5) / full_dims;
+        composite_rgb_linear = apply_diffusion(composite_rgb_linear, diffusion_uv);
+    }
     composite_rgb_linear = apply_white_balance(composite_rgb_linear, t_wb_log_gains);
     composite_rgb_linear = apply_centre_tonal_and_color(composite_rgb_linear, adjustments.global.centre, vec2<f32>(adjustments.global.centre_x, adjustments.global.centre_y), absolute_coord_i);
     let tone_stats = textureLoad(airlight_texture, vec2<i32>(2, 0), 0);
