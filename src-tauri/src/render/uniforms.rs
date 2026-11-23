@@ -178,6 +178,16 @@ pub struct GlobalAdjustments {
     pub sharpness_threshold: f32,
 
     pub monochrome: MonochromeSettings,
+
+    // Lens diffusion filter (fotufilm DiffusionFilter port).
+    pub diffusion_enabled: f32,
+    pub diffusion_direct: f32,
+    pub diffusion_scattered: f32,
+    pub diffusion_w0: f32,
+    pub diffusion_w1: f32,
+    pub diffusion_w2: f32,
+    pub diffusion_scale: f32,
+    pub _pad_diffusion: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -542,6 +552,7 @@ fn get_global_adjustments_from_json(
         ..
     } = render;
     let is_visible = |tool: &str| is_tool_active(js_adjustments, tool);
+    let lens = lens_filter_values(js_adjustments);
 
     let get_val = |tool: &str, key: &str, scale: f32, default: Option<f64>| -> f32 {
         if is_visible(tool) {
@@ -859,6 +870,15 @@ fn get_global_adjustments_from_json(
             Some(15.0),
         ),
 
+        diffusion_enabled: lens[0],
+        diffusion_direct: lens[1],
+        diffusion_scattered: lens[2],
+        diffusion_w0: lens[3],
+        diffusion_w1: lens[4],
+        diffusion_w2: lens[5],
+        diffusion_scale: lens[6],
+        _pad_diffusion: lens[7],
+
         monochrome: if is_monochrome {
             parse_monochrome_settings(
                 js_adjustments,
@@ -1021,7 +1041,63 @@ fn get_mask_adjustments_from_json(
     }
 }
 
-pub fn get_all_adjustments_from_json(
+pub 
+// Diffusion lens filters, ported from fotufilm's DiffusionFilter model.
+// Rows: 6 families x 5 grades = [direct, scattered, w0, w1, w2, sigma_px@50mm]
+const DIFFUSION_TABLE: [[f32; 6]; 30] = [
+    [0.95, 0.0475, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.90, 0.0950, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.81, 0.1805, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.68, 0.3040, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.50, 0.4750, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.95, 0.0250, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.90, 0.0500, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.81, 0.0950, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.68, 0.1600, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.50, 0.2500, 0.7778, 0.1083, 0.1139, 72.416],
+    [0.92, 0.0800, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.84, 0.1600, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.71, 0.2900, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.50, 0.4600, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.28, 0.7200, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.92, 0.0400, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.84, 0.0800, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.71, 0.1450, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.50, 0.2300, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.28, 0.3600, 0.7778, 0.1083, 0.1139, 21.000],
+    [0.97, 0.0150, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.94, 0.0300, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.88, 0.0600, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.76, 0.1200, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.52, 0.2400, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.97, 0.0075, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.94, 0.0150, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.88, 0.0300, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.76, 0.0600, 0.7778, 0.1083, 0.1139, 173.799],
+    [0.52, 0.1200, 0.7778, 0.1083, 0.1139, 173.799],
+];
+
+fn lens_filter_values(js: &serde_json::Value) -> [f32; 8] {
+    let lookup = |section: &str, key: &str| -> Option<f64> {
+        js.get(section)
+            .and_then(|s| s.get(key))
+            .and_then(|v| v.as_f64())
+    };
+    let enabled = lookup("effects", "lensFilterEnabled").unwrap_or(0.0);
+    if enabled < 0.5 {
+        return [0.0; 8];
+    }
+    let family = lookup("effects", "lensFilterFamily").unwrap_or(1.0).clamp(0.0, 5.0) as usize;
+    let grade = lookup("effects", "lensFilterGrade").unwrap_or(2.0).clamp(0.0, 4.0) as usize;
+    let intensity = (lookup("effects", "lensFilterIntensity").unwrap_or(100.0) / 100.0).clamp(0.0, 1.0) as f32;
+    let row = DIFFUSION_TABLE[family * 5 + grade];
+    let absorbed = (1.0 - row[0] - row[1]).max(0.0);
+    let scattered = row[1] * intensity;
+    let direct = 1.0 - scattered - absorbed * intensity;
+    [1.0, direct, scattered, row[2], row[3], row[4], row[5], 0.0]
+}
+
+fn get_all_adjustments_from_json(
     js_adjustments: &serde_json::Value,
     is_raw: bool,
     as_shot: AsShot,
