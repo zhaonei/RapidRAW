@@ -11,9 +11,9 @@
   "baselineExposure": true,
   "blacks": 0,
   "brightness": 0,
-  "centré": 0,
-  "centréX": 0.5,
-  "centréY": 0.5,
+  "centr\u00e9": 0,
+  "centr\u00e9X": 0.5,
+  "centr\u00e9Y": 0.5,
   "clarity": 0,
   "chromaticAberrationBlueYellow": 0,
   "chromaticAberrationRedCyan": 0,
@@ -350,5 +350,9 @@
   "vignetteMidpoint": 50,
   "vignetteRoundness": 0,
   "whiteBalance": null,
-  "whites": 0
+  "whites": 0,
+  "lensFilterEnabled": 0,
+  "lensFilterFamily": 1,
+  "lensFilterGrade": 2,
+  "lensFilterIntensity": 100
 }
