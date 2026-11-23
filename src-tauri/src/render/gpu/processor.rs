@@ -1682,6 +1682,23 @@ impl GpuProcessor {
                 let did_create_sharpness_blur = (need_sharpen || need_grain_softness)
                     && run_blur(1.0, &self.sharpness_blur_view);
 
+                let diffusion_on = adjustments.global.diffusion_enabled > 0.5;
+                let mut diffusion_textures: Vec<wgpu::Texture> = Vec::new();
+                let mut diffusion_views: [Option<wgpu::TextureView>; 3] = [None, None, None];
+                if diffusion_on {
+                    let base_radius = adjustments.global.diffusion_scale.max(1.0);
+                    for (index, multiplier) in [1.0f32, 2.43, 5.9].into_iter().enumerate() {
+                        let texture = device.create_texture(&wgpu::TextureDescriptor {
+                            label: Some("Diffusion Blur"),
+                            ..reusable_texture_desc
+                        });
+                        let view = texture.create_view(&Default::default());
+                        run_blur(base_radius * multiplier, &view);
+                        diffusion_views[index] = Some(view);
+                        diffusion_textures.push(texture);
+                    }
+                }
+
                 let mut main_encoder = device.create_command_encoder(&Default::default());
 
                 let mut tile_adjustments = adjustments;
@@ -1760,6 +1777,17 @@ impl GpuProcessor {
                     binding: 14 + MAX_MASK_BINDINGS,
                     resource: wgpu::BindingResource::TextureView(airlight_view),
                 });
+
+                for index in 0..3u32 {
+                    bind_group_entries.push(wgpu::BindGroupEntry {
+                        binding: 15 + index + MAX_MASK_BINDINGS,
+                        resource: wgpu::BindingResource::TextureView(
+                            diffusion_views[index as usize]
+                                .as_ref()
+                                .unwrap_or(&self.pipelines.dummy_blur_view),
+                        ),
+                    });
+                }
 
                 let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Tile Bind Group"),
