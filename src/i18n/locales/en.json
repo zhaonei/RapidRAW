@@ -243,7 +243,9 @@
       "roundness": "Roundness",
       "size": "Size",
       "spatial": "Spatial",
-      "vignette": "Vignette"
+      "vignette": "Vignette",
+      "lensFilter": "Lens filter",
+      "lensFilterIntensity": "Filter strength"
     }
   },
   "contextMenus": {
